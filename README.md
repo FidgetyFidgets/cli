@@ -3,7 +3,7 @@
 A fast and friendly command-line tool for inspecting, building, and extracting `.fidget` widget files. No spinning required—unless you want to.
 
 ![version](https://img.shields.io/badge/status-internal--alpha-blueviolet)  
-[Download latest .exe release](https://github.com/your-username/fidgety-cli/releases/latest)
+[Download latest .exe release](https://github.com/fidgetyfidgets/cli/releases/latest)
 
 ## ✨ Features
 
