@@ -6,12 +6,14 @@ def inspect_fidget(path):
     try:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
+
         print(f"\n📄 {Path(path).name}")
         print(f"   🔤 name: {data.get('name', '[none]')}")
         print(f"   🛠  type: {data.get('type', '[unknown]')}")
-        for k in ("image", "sound", "meta"):
-            if k in data:
-                print(f"   ✅ contains: {k}")
+        print(f"   🧬 schemaVersion: {data.get('schemaVersion', '1 (implicit)')}")
+        for key in ("image", "sound", "meta"):
+            if key in data:
+                print(f"   ✅ contains: {key}")
         print(f"   📦 size: {os.path.getsize(path)} bytes\n")
     except Exception as e:
         print(f"⚠️ Failed to read {path}: {e}")
@@ -22,73 +24,86 @@ def extract_asset(path, key, out):
             data = json.load(f)
         if key not in data:
             raise KeyError(f"'{key}' not found in {path}")
+        content = base64.b64decode(data[key])
         with open(out, "wb") as out_file:
-            out_file.write(base64.b64decode(data[key]))
-        print(f"✅ Extracted {key} to {out}")
+            out_file.write(content)
+        print(f"✅ Extracted '{key}' to {out}")
     except Exception as e:
-        print(f"❌ Error extracting: {e}")
+        print(f"❌ Error: {e}")
 
 def scaffold_blank(name):
     obj = {
         "name": name,
         "type": "toggle",
-        "image": "",  # base64-encoded placeholder
+        "image": "",  # base64 image content goes here
         "meta": {
             "created": "2025-07-01",
             "author": "you"
-        }
+        },
+        "schemaVersion": 1
     }
-    path = f"{name}.fidget"
-    with open(path, "w", encoding="utf-8") as f:
+    output = f"{name}.fidget"
+    with open(output, "w", encoding="utf-8") as f:
         json.dump(obj, f, indent=2)
-    print(f"✨ Created blank .fidget at {path}")
+    print(f"✨ Created new .fidget scaffold at {output}")
 
 def validate_fidget(path):
     try:
         with open(path, "r", encoding="utf-8") as f:
             json.load(f)
-        print(f"✅ JSON structure valid for {path}")
+        print(f"✅ JSON structure valid in {path}")
     except Exception as e:
         print(f"❌ Invalid JSON: {e}")
 
 def pack_directory(folder, out):
     try:
-        meta = Path(folder) / "meta.json"
-        img  = Path(folder) / "image.png"
-        snd  = Path(folder) / "sound.mp3"
-        with open(meta, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        if img.exists():
-            data["image"] = base64.b64encode(img.read_bytes()).decode("utf-8")
-        if snd.exists():
-            data["sound"] = base64.b64encode(snd.read_bytes()).decode("utf-8")
+        base = Path(folder)
+        with open(base / "meta.json", "r", encoding="utf-8") as f:
+            obj = json.load(f)
+        for field, filename in [("image", "image.png"), ("sound", "sound.mp3")]:
+            asset_path = base / filename
+            if asset_path.exists():
+                with open(asset_path, "rb") as b:
+                    obj[field] = base64.b64encode(b.read()).decode("utf-8")
         with open(out, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
-        print(f"📦 Packed folder into {out}")
+            json.dump(obj, f, indent=2)
+        print(f"📦 Packed {folder} → {out}")
     except Exception as e:
-        print(f"❌ Failed to pack: {e}")
+        print(f"❌ Packing failed: {e}")
 
 def main():
-    parser = argparse.ArgumentParser(description="Fidgety CLI — inspect, build, and edit .fidget files")
+    parser = argparse.ArgumentParser(
+        description="🧩 Fidgety CLI – build, inspect, and unpack .fidget widget files",
+        epilog="""
+📚 EXAMPLES:
+  fidgety.py inspect myWidget.fidget
+  fidgety.py scaffold coolSpin
+  fidgety.py extract myWidget.fidget --key=image --out=logo.png
+  fidgety.py pack ./src/clicktoggle --out=click.fidget
+  fidgety.py validate anything.fidget
+        """,
+        formatter_class=argparse.RawTextHelpFormatter
+    )
+
     sub = parser.add_subparsers(dest="cmd")
 
-    i = sub.add_parser("inspect")
-    i.add_argument("file")
+    inspect = sub.add_parser("inspect", help="Inspect a .fidget file's metadata and structure")
+    inspect.add_argument("file")
 
-    e = sub.add_parser("extract")
-    e.add_argument("file")
-    e.add_argument("--key", required=True)
-    e.add_argument("--out", required=True)
+    extract = sub.add_parser("extract", help="Extract embedded image or sound from a .fidget file")
+    extract.add_argument("file")
+    extract.add_argument("--key", required=True, help="Name of field to extract (e.g. image, sound)")
+    extract.add_argument("--out", required=True, help="Output file path")
 
-    v = sub.add_parser("validate")
-    v.add_argument("file")
+    validate = sub.add_parser("validate", help="Validate the structure of a .fidget file")
+    validate.add_argument("file")
 
-    s = sub.add_parser("scaffold")
-    s.add_argument("name")
+    scaffold = sub.add_parser("scaffold", help="Create a blank .fidget scaffold")
+    scaffold.add_argument("name", help="Name to use for the new .fidget file")
 
-    p = sub.add_parser("pack")
-    p.add_argument("folder")
-    p.add_argument("--out", required=True)
+    pack = sub.add_parser("pack", help="Bundle assets from a folder into a .fidget")
+    pack.add_argument("folder", help="Folder containing meta.json and optional image/sound")
+    pack.add_argument("--out", required=True, help="Destination .fidget filename")
 
     args = parser.parse_args()
 
